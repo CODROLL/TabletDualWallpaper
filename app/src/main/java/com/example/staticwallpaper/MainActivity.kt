@@ -4,7 +4,9 @@ import android.app.WallpaperManager
 import android.content.*
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.util.DisplayMetrics
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -29,6 +31,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.staticwallpaper.data.*
 import com.example.staticwallpaper.render.BitmapDecoder
+import com.example.staticwallpaper.render.LockScreenSetter
 import com.example.staticwallpaper.render.TransformCalculator
 import com.example.staticwallpaper.service.StaticWallpaperService
 import com.example.staticwallpaper.ui.CompositionView
@@ -68,7 +71,9 @@ class MainActivity : ComponentActivity() {
                 if(selected==null) Toast.makeText(ctx,"无法读取此图片，请换一张图片重试。",Toast.LENGTH_LONG).show()
                 else {
                     val iw=selected.width.toFloat(); val ih=selected.height.toFloat()
-                    repo.save(config.copy(imageUri=it.toString(),landscape=TransformCalculator.defaultFor(iw,ih,1600f,1000f,true),portrait=TransformCalculator.defaultFor(iw,ih,1000f,1600f,true)))
+                    val landscape=TransformCalculator.defaultFor(iw,ih,1600f,1000f,true)
+                    val portrait=TransformCalculator.defaultFor(iw,ih,1000f,1600f,true)
+                    repo.save(config.copy(imageUri=it.toString(),landscape=landscape,portrait=portrait,lockLandscape=landscape,lockPortrait=portrait))
                     selected.recycle()
                 }
             }
@@ -79,7 +84,9 @@ class MainActivity : ComponentActivity() {
                 else Image(b.asImageBitmap(),null,Modifier.fillMaxWidth().height(280.dp),contentScale=ContentScale.Fit)
                 Button({picker.launch(arrayOf("image/png","image/jpeg","image/webp"))},Modifier.fillMaxWidth()){Text("选择图片")}
                 Button({if(b!=null) open("edit") else Toast.makeText(ctx,"请先选择图片",Toast.LENGTH_SHORT).show()},Modifier.fillMaxWidth()){Text("调整显示区域")}
-                OutlinedButton({if(b!=null) openWallpaperPreview() else Toast.makeText(ctx,"请先选择图片",Toast.LENGTH_SHORT).show()},Modifier.fillMaxWidth()){Text("预览并设置为系统壁纸")}
+                OutlinedButton({if(b!=null) openWallpaperPreview() else Toast.makeText(ctx,"请先选择图片",Toast.LENGTH_SHORT).show()},Modifier.fillMaxWidth()){Text("预览动态壁纸（桌面 / 锁屏）")}
+                OutlinedButton({if(b!=null) setStaticLockScreen(config) else Toast.makeText(ctx,"请先选择图片",Toast.LENGTH_SHORT).show()},Modifier.fillMaxWidth()){Text("设置当前方向为静态锁屏")}
+                Text("动态锁屏由系统预览页决定是否支持；若华为预览页没有“锁屏”选项，可使用静态锁屏回退。",style=MaterialTheme.typography.bodySmall)
                 Text("壁纸仅在创建、尺寸变化、变为可见或设置变化时绘制，不运行持续帧循环。",style=MaterialTheme.typography.bodySmall)
             }
         }
@@ -87,12 +94,20 @@ class MainActivity : ComponentActivity() {
 
     @Composable private fun Editor(config:WallpaperConfig,b:Bitmap?,save:(WallpaperConfig)->Unit,back:()->Unit) {
         var landscape by remember { mutableStateOf(true) }
+        var lockScreen by remember { mutableStateOf(false) }
         var fullscreen by remember { mutableStateOf(false) }
         // Initialize once when entering the editor. DataStore emissions must not
         // replace a transform that is currently being manipulated.
         var local by remember { mutableStateOf(config) }
-        fun current()=if(landscape)local.landscape else local.portrait
-        fun updateInMemory(t:OrientationTransform){ local=if(landscape)local.copy(landscape=t) else local.copy(portrait=t) }
+        fun current()=local.transformFor(landscape,lockScreen)
+        fun updateInMemory(t:OrientationTransform){
+            local=when {
+                lockScreen && landscape -> local.copy(lockLandscape=t)
+                lockScreen -> local.copy(lockPortrait=t)
+                landscape -> local.copy(landscape=t)
+                else -> local.copy(portrait=t)
+            }
+        }
         fun commit(t:OrientationTransform=current()){ updateInMemory(t);save(local) }
         DisposableEffect(fullscreen) {
             val controller=WindowInsetsControllerCompat(window,window.decorView)
@@ -111,6 +126,10 @@ class MainActivity : ComponentActivity() {
         }
         Scaffold(topBar={if(!fullscreen) TopAppBar(title={Text("构图编辑")},navigationIcon={TextButton(onClick={commit();back()}){Text("返回")}},actions={TextButton(onClick={fullscreen=true}){Text("全屏")}})}) { pad ->
             Column(Modifier.padding(pad).fillMaxSize()) {
+                if(!fullscreen) TabRow(if(lockScreen)1 else 0) {
+                    Tab(selected=!lockScreen,onClick={commit();lockScreen=false},text={Text("桌面构图",Modifier.padding(10.dp))})
+                    Tab(selected=lockScreen,onClick={commit();lockScreen=true},text={Text("锁屏构图",Modifier.padding(10.dp))})
+                }
                 if(!fullscreen) TabRow(if(landscape)0 else 1) {
                     Tab(selected=landscape,onClick={commit();landscape=true},text={Text("横屏区域 16:10",Modifier.padding(12.dp))})
                     Tab(selected=!landscape,onClick={commit();landscape=false},text={Text("竖屏区域 10:16",Modifier.padding(12.dp))})
@@ -137,7 +156,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 if(!fullscreen) {
-                    Text("像素位：原图中心 (${sourceX.toInt()}, ${sourceY.toInt()}) px  ·  位移 (${offsetX.toInt()}, ${offsetY.toInt()}) px  ·  缩放 ${"%.1f".format(result.scale*100)}%",Modifier.padding(horizontal=12.dp,vertical=4.dp),style=MaterialTheme.typography.bodySmall)
+                    Text("${if(lockScreen)"锁屏" else "桌面"}像素位：原图中心 (${sourceX.toInt()}, ${sourceY.toInt()}) px  ·  位移 (${offsetX.toInt()}, ${offsetY.toInt()}) px  ·  缩放 ${"%.1f".format(result.scale*100)}%",Modifier.padding(horizontal=12.dp,vertical=4.dp),style=MaterialTheme.typography.bodySmall)
                     Text("按 ${vw.toInt()} × ${vh.toInt()} 预估；实际壁纸以系统 Surface 为准",Modifier.padding(horizontal=12.dp),style=MaterialTheme.typography.labelSmall)
                     Row(Modifier.fillMaxWidth().padding(6.dp),horizontalArrangement=Arrangement.SpaceEvenly) {
                         TextButton({commit(current().copy(normalizedOffsetX=0f,normalizedOffsetY=0f))}){Text("居中")}
@@ -146,8 +165,12 @@ class MainActivity : ComponentActivity() {
                         TextButton({commit(TransformCalculator.defaultFor(iw,ih,vw,vh,true))}){Text("恢复默认")}
                     }
                     Row(Modifier.fillMaxWidth().padding(bottom=8.dp),horizontalArrangement=Arrangement.SpaceEvenly) {
-                        OutlinedButton({local=local.copy(portrait=local.landscape);save(local)}){Text("横屏复制到竖屏")}
-                        OutlinedButton({local=local.copy(landscape=local.portrait);save(local)}){Text("竖屏复制到横屏")}
+                        OutlinedButton({local=if(lockScreen)local.copy(lockPortrait=local.lockLandscape) else local.copy(portrait=local.landscape);save(local)}){Text("横屏复制到竖屏")}
+                        OutlinedButton({local=if(lockScreen)local.copy(lockLandscape=local.lockPortrait) else local.copy(landscape=local.portrait);save(local)}){Text("竖屏复制到横屏")}
+                    }
+                    Row(Modifier.fillMaxWidth().padding(bottom=8.dp),horizontalArrangement=Arrangement.Center) {
+                        if(lockScreen) OutlinedButton({local=local.copy(lockLandscape=local.landscape,lockPortrait=local.portrait);save(local)}){Text("从桌面复制到锁屏")}
+                        else OutlinedButton({local=local.copy(lockLandscape=local.landscape,lockPortrait=local.portrait);save(local)}){Text("复制桌面构图到锁屏")}
                     }
                 }
             }
@@ -168,5 +191,14 @@ class MainActivity : ComponentActivity() {
         val component=ComponentName(this,StaticWallpaperService::class.java)
         val direct=Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,component)
         try { startActivity(direct) } catch (_:Exception) { try { startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)) } catch (e:Exception) { Toast.makeText(this,"系统未提供动态壁纸选择器，请在系统设置的壁纸页面手动选择。",Toast.LENGTH_LONG).show() } }
+    }
+
+    private fun setStaticLockScreen(config: WallpaperConfig) {
+        val size=if(Build.VERSION.SDK_INT>=30) windowManager.currentWindowMetrics.bounds.let { it.width() to it.height() }
+        else DisplayMetrics().also { @Suppress("DEPRECATION") windowManager.defaultDisplay.getRealMetrics(it) }.let { it.widthPixels to it.heightPixels }
+        lifecycleScope.launch {
+            val result=withContext(Dispatchers.IO) { LockScreenSetter.apply(applicationContext,config,size.first,size.second) }
+            Toast.makeText(this@MainActivity,result.fold({"锁屏画面设置成功"},{"锁屏设置失败：${it.message ?: "系统拒绝操作"}"}),Toast.LENGTH_LONG).show()
+        }
     }
 }

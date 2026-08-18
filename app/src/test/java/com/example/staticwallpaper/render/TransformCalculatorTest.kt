@@ -1,6 +1,8 @@
 package com.example.staticwallpaper.render
 
 import com.example.staticwallpaper.data.OrientationTransform
+import com.example.staticwallpaper.data.WallpaperConfig
+import com.example.staticwallpaper.data.transformFor
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -29,5 +31,16 @@ class TransformCalculatorTest {
     @Test fun clampFillPreventsBlankSpace() {
         val t=TransformCalculator.clamp(4000f,2000f,1000f,1600f,OrientationTransform(.1f,9f,-9f),true)
         assertTrue(t.scale>1f);assertEquals(1f,t.normalizedOffsetX);assertEquals(-1f,t.normalizedOffsetY)
+    }
+    @Test fun lockScreenAndHomeTransformsAreIndependent() {
+        val homeLandscape=OrientationTransform(2f,-.5f,0f)
+        val homePortrait=OrientationTransform(3f,.5f,0f)
+        val lockLandscape=OrientationTransform(4f,-1f,.2f)
+        val lockPortrait=OrientationTransform(5f,1f,-.2f)
+        val config=WallpaperConfig(landscape=homeLandscape,portrait=homePortrait,lockLandscape=lockLandscape,lockPortrait=lockPortrait)
+        assertEquals(homeLandscape,config.transformFor(true,false))
+        assertEquals(homePortrait,config.transformFor(false,false))
+        assertEquals(lockLandscape,config.transformFor(true,true))
+        assertEquals(lockPortrait,config.transformFor(false,true))
     }
 }

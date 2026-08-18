@@ -9,7 +9,7 @@ import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
 import com.example.staticwallpaper.data.*
 import com.example.staticwallpaper.render.BitmapDecoder
-import com.example.staticwallpaper.render.TransformCalculator
+import com.example.staticwallpaper.render.WallpaperRenderer
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 
@@ -66,30 +66,16 @@ class StaticWallpaperService : WallpaperService() {
             var canvas: Canvas? = null
             try {
                 canvas = surfaceHolder.lockCanvas() ?: return@Runnable
-                val bg = when (config.backgroundMode) {
-                    BackgroundMode.BLACK -> Color.BLACK
-                    BackgroundMode.COLOR -> config.backgroundColor.toInt()
-                    BackgroundMode.EDGE -> b?.let { it.getPixel(it.width / 2, it.height / 2) } ?: Color.BLACK
-                    BackgroundMode.BLUR -> Color.BLACK
-                }
-                canvas.drawColor(bg)
+                canvas.drawColor(Color.BLACK)
                 if (b != null && !b.isRecycled) {
-                    if (config.backgroundMode == BackgroundMode.BLUR) drawBlurBackdrop(canvas, b)
-                    val base = if (width > height) config.landscape else config.portrait
+                    val lock=android.os.Build.VERSION.SDK_INT>=34 && (wallpaperFlags and android.app.WallpaperManager.FLAG_LOCK)!=0
+                    val base=config.transformFor(width>height,lock)
                     val parallax = if (config.parallaxEnabled) ((xOffset-.5f)*.20f).coerceIn(-.1f,.1f) else 0f
-                    val t = base.copy(normalizedOffsetX=(base.normalizedOffsetX+parallax).coerceIn(-1f,1f))
-                    val r = TransformCalculator.calculate(b.width.toFloat(), b.height.toFloat(), width.toFloat(), height.toFloat(), t)
-                    val m = Matrix().apply { postScale(r.scale,r.scale); postTranslate(r.translateX,r.translateY) }
-                    canvas.drawBitmap(b,m,Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG))
+                    WallpaperRenderer.draw(canvas,b,config,base,width,height,parallax)
                 }
             } catch (_: Throwable) { } finally { if (canvas != null) runCatching { surfaceHolder.unlockCanvasAndPost(canvas) } }
         }
-        private fun drawBlurBackdrop(c: Canvas, b: Bitmap) {
-            val s=TransformCalculator.centerCropScale(b.width.toFloat(),b.height.toFloat(),width.toFloat(),height.toFloat())
-            val m=Matrix().apply { postScale(s,s); postTranslate((width-b.width*s)/2,(height-b.height*s)/2) }
-            val p=Paint(Paint.FILTER_BITMAP_FLAG).apply { colorFilter=PorterDuffColorFilter(0x99000000.toInt(),PorterDuff.Mode.SRC_OVER) }
-            c.drawBitmap(b,m,p)
-        }
+        override fun onWallpaperFlagsChanged(which: Int) { super.onWallpaperFlagsChanged(which); drawFrame() }
         override fun onSurfaceDestroyed(holder: SurfaceHolder) { handler.removeCallbacksAndMessages(null); bitmap?.recycle(); bitmap=null; super.onSurfaceDestroyed(holder) }
         override fun onDestroy() {
             destroyed=true; runCatching { unregisterReceiver(receiver) }; scope.cancel(); handler.removeCallbacksAndMessages(null); bitmap?.recycle(); bitmap=null; thread.quitSafely(); super.onDestroy()

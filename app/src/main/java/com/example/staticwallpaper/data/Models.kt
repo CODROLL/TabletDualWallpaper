@@ -13,8 +13,18 @@ data class WallpaperConfig(
     val imageUri: String? = null,
     val landscape: OrientationTransform = OrientationTransform(),
     val portrait: OrientationTransform = OrientationTransform(),
+    val lockLandscape: OrientationTransform = landscape,
+    val lockPortrait: OrientationTransform = portrait,
     val backgroundMode: BackgroundMode = BackgroundMode.BLACK,
     val backgroundColor: Long = 0xFF000000,
     val parallaxEnabled: Boolean = false,
     val memoryMode: MemoryMode = MemoryMode.BALANCED
 )
+
+fun WallpaperConfig.transformFor(isLandscape: Boolean, isLockScreen: Boolean): OrientationTransform =
+    when {
+        isLockScreen && isLandscape -> lockLandscape
+        isLockScreen -> lockPortrait
+        isLandscape -> landscape
+        else -> portrait
+    }
