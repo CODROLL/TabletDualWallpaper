@@ -57,6 +57,20 @@ class TransformCalculatorTest {
         assertTrue(r.translateX+iw*r.scale>=vw-.001f);assertTrue(r.translateY+ih*r.scale>=vh-.001f)
     }
 
+    @Test fun exactFitNeverCreatesAnEmptyCenterRange(){
+        listOf(
+            floatArrayOf(2560f,1600f,2560f,1600f),
+            floatArrayOf(1600f,2560f,1600f,2560f),
+            floatArrayOf(4000f,2500f,2560f,1600f),
+            floatArrayOf(2500f,4000f,1600f,2560f)
+        ).forEach{v->
+            val fill=TransformCalculator.centerCrop(v[0],v[1],v[2],v[3]).copy(centerX=2f,centerY=-1f)
+            val clamped=TransformCalculator.clamp(v[0],v[1],v[2],v[3],fill)
+            assertEquals(.5f,clamped.centerX,.0001f)
+            assertEquals(.5f,clamped.centerY,.0001f)
+        }
+    }
+
     @Test fun backgroundModeKeepsTwentyPercentVisible(){
         val iw=1000f;val ih=1000f;val vw=1600f;val vh=1000f
         val t=TransformCalculator.clamp(iw,ih,vw,vh,CompositionTransform(1f,99f,-99f,true));val r=TransformCalculator.calculate(iw,ih,vw,vh,t)

@@ -79,7 +79,12 @@ object TransformCalculator {
             xRange = ((requiredX - vw / 2f) / scaledW)..(1f + (vw / 2f - requiredX) / scaledW)
             yRange = ((requiredY - vh / 2f) / scaledH)..(1f + (vh / 2f - requiredY) / scaledH)
         }
-        return input.copy(zoom = zoom, centerX = input.centerX.coerceIn(xRange), centerY = input.centerY.coerceIn(yRange))
+        fun clampAxis(value: Float, range: ClosedFloatingPointRange<Float>): Float {
+            // Exact-fit dimensions can cross by a few ULPs (for example 0.50000006..0.49999994).
+            // Treat that degenerate interval as the single centered position instead of calling coerceIn.
+            return if (range.start <= range.endInclusive) value.coerceIn(range) else (range.start + range.endInclusive) / 2f
+        }
+        return input.copy(zoom = zoom, centerX = clampAxis(input.centerX,xRange), centerY = clampAxis(input.centerY,yRange))
     }
 
     fun migrateLegacy(iw: Float, ih: Float, vw: Float, vh: Float, legacy: LegacyTransform): CompositionTransform {
