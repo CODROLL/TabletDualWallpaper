@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">静态动态壁纸</string>
+    <string name="wallpaper_name">静态图片壁纸</string>
+    <string name="wallpaper_description">低功耗横竖屏独立构图壁纸</string>
+</resources>

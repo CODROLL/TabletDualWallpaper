@@ -1,0 +1,8 @@
+/.gradle/
+/.gradle-local/
+/.idea/
+/.toolchain/
+/wrapper-bootstrap/
+/local.properties
+/**/build/
+*.iml
