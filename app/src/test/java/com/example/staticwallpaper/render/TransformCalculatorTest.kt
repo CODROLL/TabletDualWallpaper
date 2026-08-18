@@ -1,46 +1,69 @@
 package com.example.staticwallpaper.render
 
-import com.example.staticwallpaper.data.OrientationTransform
-import com.example.staticwallpaper.data.WallpaperConfig
-import com.example.staticwallpaper.data.transformFor
+import com.example.staticwallpaper.data.*
+import com.example.staticwallpaper.ui.EditHistory
 import org.junit.Assert.*
 import org.junit.Test
+import kotlin.math.max
 
 class TransformCalculatorTest {
-    @Test fun centerCropWideIntoPortrait() { assertEquals(2560f/2258f,TransformCalculator.centerCropScale(4000f,2258f,1600f,2560f),.0001f) }
-    @Test fun fitCenterWideIntoPortrait() { assertEquals(.4f,TransformCalculator.fitCenterScale(4000f,2258f,1600f,2560f),.0001f) }
-    @Test fun squareIntoLandscapeAndPortrait() {
+    @Test fun physicalProfilesCoverCommonTabletRatios(){
+        listOf(2560 to 1600,2000 to 1200,2160 to 1440,1920 to 1080,1601 to 1201).forEach{(w,h)->
+            val p=DisplayProfile(w,h,320);assertEquals(max(w,h),p.landscape.width);assertTrue(p.landscape.width>p.landscape.height);assertEquals(p.landscape.width,p.portrait.height)
+        }
+    }
+
+    @Test fun centerCropAndFitCenter(){
         assertEquals(1.6f,TransformCalculator.centerCropScale(1000f,1000f,1600f,1000f),.0001f)
-        assertEquals(1.6f,TransformCalculator.centerCropScale(1000f,1000f,1000f,1600f),.0001f)
+        assertEquals(1f,TransformCalculator.fitCenterScale(1000f,1000f,1600f,1000f),.0001f)
+        assertFalse(TransformCalculator.centerCrop(1000f,1000f,1600f,1000f).allowBackground)
+        assertTrue(TransformCalculator.fitCenter().allowBackground)
     }
-    @Test fun extremeTall() { assertEquals(16f,TransformCalculator.centerCropScale(100f,1000f,1600f,1000f),.0001f) }
-    @Test fun normalizedOffsetConvertsToPixels() {
-        val r=TransformCalculator.calculate(4000f,2000f,1000f,1000f,OrientationTransform(1f,1f,0f))
-        assertEquals(0.25f,r.scale,.0001f);assertEquals(0f,r.translateX,.0001f)
+
+    @Test fun focalPointRemainsStationaryWhileZooming(){
+        val iw=4000f;val ih=3000f;val vw=2000f;val vh=1200f;val focusX=3100f;val focusY=800f
+        val old=CompositionTransform(1.4f,.55f,.45f,true);val before=TransformCalculator.calculate(iw,ih,vw,vh,old)
+        val next=TransformCalculator.zoomAround(old,iw,ih,focusX,focusY,1.7f);val after=TransformCalculator.calculate(iw,ih,vw,vh,next)
+        assertEquals(focusX*before.scale+before.translateX,focusX*after.scale+after.translateX,.01f)
+        assertEquals(focusY*before.scale+before.translateY,focusY*after.scale+after.translateY,.01f)
     }
-    @Test fun orientationSelectionIsIndependent() {
-        val l=OrientationTransform(2f,-1f,.2f); val p=OrientationTransform(3f,1f,-.4f)
-        assertNotEquals(l,p);assertEquals(-1f,l.normalizedOffsetX);assertEquals(1f,p.normalizedOffsetX)
+
+    @Test fun panWorksOnBothAxesEvenWhenImageFits(){
+        val start=CompositionTransform(1f,.5f,.5f,true);val moved=TransformCalculator.panBySource(start,1000f,1000f,50f,-25f)
+        assertEquals(.55f,moved.centerX,.0001f);assertEquals(.475f,moved.centerY,.0001f)
     }
-    @Test fun surfaceSizeChangeRecalculates() {
-        val t=OrientationTransform(2f,.5f,0f)
-        val a=TransformCalculator.calculate(4000f,2000f,2560f,1600f,t)
-        val b=TransformCalculator.calculate(4000f,2000f,1600f,2560f,t)
-        assertNotEquals(a.scale,b.scale);assertNotEquals(a.translateX,b.translateX)
+
+    @Test fun fillClampNeverExposesBackground(){
+        val iw=4000f;val ih=2000f;val vw=1000f;val vh=1600f
+        val t=TransformCalculator.clamp(iw,ih,vw,vh,CompositionTransform(.1f,-5f,8f,false));val r=TransformCalculator.calculate(iw,ih,vw,vh,t)
+        assertTrue(r.translateX<=.001f);assertTrue(r.translateY<=.001f)
+        assertTrue(r.translateX+iw*r.scale>=vw-.001f);assertTrue(r.translateY+ih*r.scale>=vh-.001f)
     }
-    @Test fun clampFillPreventsBlankSpace() {
-        val t=TransformCalculator.clamp(4000f,2000f,1000f,1600f,OrientationTransform(.1f,9f,-9f),true)
-        assertTrue(t.scale>1f);assertEquals(1f,t.normalizedOffsetX);assertEquals(-1f,t.normalizedOffsetY)
+
+    @Test fun backgroundModeKeepsTwentyPercentVisible(){
+        val iw=1000f;val ih=1000f;val vw=1600f;val vh=1000f
+        val t=TransformCalculator.clamp(iw,ih,vw,vh,CompositionTransform(1f,99f,-99f,true));val r=TransformCalculator.calculate(iw,ih,vw,vh,t)
+        val left=r.translateX;val top=r.translateY;val right=left+iw*r.scale;val bottom=top+ih*r.scale
+        val intersectionW=(minOf(vw,right)-maxOf(0f,left)).coerceAtLeast(0f);val intersectionH=(minOf(vh,bottom)-maxOf(0f,top)).coerceAtLeast(0f)
+        assertTrue(intersectionW+1f>=minOf(vw*.2f,iw*r.scale));assertTrue(intersectionH+1f>=minOf(vh*.2f,ih*r.scale))
     }
-    @Test fun lockScreenAndHomeTransformsAreIndependent() {
-        val homeLandscape=OrientationTransform(2f,-.5f,0f)
-        val homePortrait=OrientationTransform(3f,.5f,0f)
-        val lockLandscape=OrientationTransform(4f,-1f,.2f)
-        val lockPortrait=OrientationTransform(5f,1f,-.2f)
-        val config=WallpaperConfig(landscape=homeLandscape,portrait=homePortrait,lockLandscape=lockLandscape,lockPortrait=lockPortrait)
-        assertEquals(homeLandscape,config.transformFor(true,false))
-        assertEquals(homePortrait,config.transformFor(false,false))
-        assertEquals(lockLandscape,config.transformFor(true,true))
-        assertEquals(lockPortrait,config.transformFor(false,true))
+
+    @Test fun legacyMigrationProducesIdenticalMatrix(){
+        val iw=4000f;val ih=2250f;val vw=2560f;val vh=1600f;val old=LegacyTransform(2f,.65f,-.4f)
+        val fit=TransformCalculator.fitCenterScale(iw,ih,vw,vh);val s=fit*old.scale;val oldX=(vw-iw*s)/2+old.offsetX*((iw*s-vw)/2).coerceAtLeast(0f);val oldY=(vh-ih*s)/2+old.offsetY*((ih*s-vh)/2).coerceAtLeast(0f)
+        val migrated=TransformCalculator.migrateLegacy(iw,ih,vw,vh,old);val result=TransformCalculator.calculate(iw,ih,vw,vh,migrated)
+        assertEquals(s,result.scale,.001f);assertEquals(oldX,result.translateX,.01f);assertEquals(oldY,result.translateY,.01f)
+    }
+
+    @Test fun desktopAndLockImagesAndTransformsAreIndependent(){
+        val d=WallpaperSourceConfig("desktop",CompositionTransform(2f,.2f,.3f),CompositionTransform(3f,.4f,.5f))
+        val l=WallpaperSourceConfig("lock",CompositionTransform(4f,.6f,.7f),CompositionTransform(5f,.8f,.9f))
+        val c=WallpaperConfig(desktop=d,lock=l);assertEquals("desktop",c.source(WallpaperTarget.DESKTOP).imageUri);assertEquals("lock",c.source(WallpaperTarget.LOCK).imageUri);assertEquals(5f,c.transform(WallpaperTarget.LOCK,false).zoom)
+        val copied=c.copy(lock=d.copy());val changed=copied.copy(lock=copied.lock.copy(imageUri="changed"));assertEquals("desktop",changed.desktop.imageUri);assertEquals("changed",changed.lock.imageUri)
+    }
+
+    @Test fun editHistorySupportsReplaceUndoRedoAndDiscard(){
+        val original=WallpaperConfig(desktop=WallpaperSourceConfig("old"));val replacement=original.copy(desktop=WallpaperSourceConfig("new"));val h=EditHistory(original)
+        h.commit(replacement);assertEquals("new",h.current.desktop.imageUri);assertEquals("old",h.undo().desktop.imageUri);assertEquals("new",h.redo().desktop.imageUri);assertEquals("old",original.desktop.imageUri)
     }
 }

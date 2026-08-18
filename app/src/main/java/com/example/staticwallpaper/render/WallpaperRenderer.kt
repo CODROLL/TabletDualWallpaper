@@ -2,7 +2,7 @@ package com.example.staticwallpaper.render
 
 import android.graphics.*
 import com.example.staticwallpaper.data.BackgroundMode
-import com.example.staticwallpaper.data.OrientationTransform
+import com.example.staticwallpaper.data.CompositionTransform
 import com.example.staticwallpaper.data.WallpaperConfig
 
 /** Shared Canvas renderer used by both live wallpaper and static lock-screen fallback. */
@@ -13,7 +13,7 @@ object WallpaperRenderer {
         canvas: Canvas,
         bitmap: Bitmap,
         config: WallpaperConfig,
-        transform: OrientationTransform,
+        transform: CompositionTransform,
         width: Int,
         height: Int,
         normalizedParallax: Float = 0f
@@ -26,7 +26,7 @@ object WallpaperRenderer {
         }
         canvas.drawColor(background)
         if(config.backgroundMode==BackgroundMode.BLUR) drawBackdrop(canvas,bitmap,width,height)
-        val adjusted=transform.copy(normalizedOffsetX=(transform.normalizedOffsetX+normalizedParallax).coerceIn(-1f,1f))
+        val adjusted=TransformCalculator.clamp(bitmap.width.toFloat(),bitmap.height.toFloat(),width.toFloat(),height.toFloat(),transform.copy(centerX=transform.centerX+normalizedParallax))
         val result=TransformCalculator.calculate(bitmap.width.toFloat(),bitmap.height.toFloat(),width.toFloat(),height.toFloat(),adjusted)
         val matrix=Matrix().apply { postScale(result.scale,result.scale);postTranslate(result.translateX,result.translateY) }
         canvas.drawBitmap(bitmap,matrix,imagePaint)
