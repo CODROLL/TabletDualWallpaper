@@ -33,6 +33,23 @@ class TransformCalculatorTest {
         assertEquals(.55f,moved.centerX,.0001f);assertEquals(.475f,moved.centerY,.0001f)
     }
 
+    @Test fun draggingImageMovesRenderedPixelsWithFinger(){
+        val iw=4000f;val ih=2250f;val vw=1600f;val vh=1000f
+        val start=TransformCalculator.centerCrop(iw,ih,vw,vh)
+        val before=TransformCalculator.calculate(iw,ih,vw,vh,start)
+        val moved=TransformCalculator.moveImageByCanvasPixels(start,iw,ih,vw,vh,120f,-45f)
+        val after=TransformCalculator.calculate(iw,ih,vw,vh,moved)
+        assertEquals(before.translateX+120f,after.translateX,.01f)
+        assertEquals(before.translateY-45f,after.translateY,.01f)
+    }
+
+    @Test fun lockOutputIsCappedWithoutChangingAspectRatio(){
+        assertEquals(2560 to 1600,LockScreenSetter.safeOutputSize(2560,1600))
+        val (w,h)=LockScreenSetter.safeOutputSize(8000,5000)
+        assertTrue(w.toLong()*h<=4_194_304L)
+        assertEquals(1.6f,w.toFloat()/h,.002f)
+    }
+
     @Test fun fillClampNeverExposesBackground(){
         val iw=4000f;val ih=2000f;val vw=1000f;val vh=1600f
         val t=TransformCalculator.clamp(iw,ih,vw,vh,CompositionTransform(.1f,-5f,8f,false));val r=TransformCalculator.calculate(iw,ih,vw,vh,t)

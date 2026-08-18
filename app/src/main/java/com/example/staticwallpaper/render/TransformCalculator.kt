@@ -40,6 +40,15 @@ object TransformCalculator {
     fun panBySource(t: CompositionTransform, iw: Float, ih: Float, dxSource: Float, dySource: Float) =
         t.copy(centerX = t.centerX + dxSource / iw, centerY = t.centerY + dySource / ih)
 
+    /** Moves the rendered image with the finger. Center coordinates therefore move in the opposite direction. */
+    fun moveImageByCanvasPixels(
+        t: CompositionTransform, iw: Float, ih: Float, vw: Float, vh: Float,
+        dxCanvas: Float, dyCanvas: Float
+    ): CompositionTransform {
+        val scale = calculate(iw, ih, vw, vh, t).scale.coerceAtLeast(.0001f)
+        return panBySource(t, iw, ih, -dxCanvas / scale, -dyCanvas / scale)
+    }
+
     fun zoomAround(t: CompositionTransform, iw: Float, ih: Float, focusX: Float, focusY: Float, factor: Float): CompositionTransform {
         val safeFactor = factor.coerceIn(.5f, 2f)
         val oldCx = t.centerX * iw

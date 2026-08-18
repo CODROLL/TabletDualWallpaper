@@ -16,6 +16,7 @@ import kotlin.math.min
 
 class CropEditorView @JvmOverloads constructor(context: Context,attrs: AttributeSet?=null): View(context,attrs) {
     var bitmap: Bitmap?=null;set(value){field=value;invalidate()}
+    var config=WallpaperConfig();set(value){field=value;invalidate()}
     var canvasSize=PixelSize(1,1);set(value){field=value;invalidate()}
     var transform=CompositionTransform();private set
     var onTransformChanged:((CompositionTransform)->Unit)?=null
@@ -23,10 +24,9 @@ class CropEditorView @JvmOverloads constructor(context: Context,attrs: Attribute
     var onGestureFinished:((CompositionTransform)->Unit)?=null
     private var gestureActive=false
     private var lastX=0f;private var lastY=0f
-    private var mapScale=1f;private var imageLeft=0f;private var imageTop=0f
+    private val frameRect=RectF()
     private var snapped=false
     private val imagePaint=Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
-    private val imageRect=RectF();private val cropRect=RectF()
     private val borderPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{style=Paint.Style.STROKE;color=Color.WHITE}
     private val guidePaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{style=Paint.Style.STROKE;color=0x99FFFFFF.toInt()}
     private val gestureDetector=GestureDetector(context,object:GestureDetector.SimpleOnGestureListener(){
@@ -39,7 +39,9 @@ class CropEditorView @JvmOverloads constructor(context: Context,attrs: Attribute
     private val scaleDetector=ScaleGestureDetector(context,object:ScaleGestureDetector.SimpleOnScaleGestureListener(){
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             val b=bitmap?:return false
-            val fx=(detector.focusX-imageLeft)/mapScale;val fy=(detector.focusY-imageTop)/mapScale
+            val result=TransformCalculator.calculate(b.width.toFloat(),b.height.toFloat(),frameRect.width(),frameRect.height(),transform)
+            val fx=(detector.focusX-frameRect.left-result.translateX)/result.scale
+            val fy=(detector.focusY-frameRect.top-result.translateY)/result.scale
             transform=TransformCalculator.zoomAround(transform,b.width.toFloat(),b.height.toFloat(),fx,fy,detector.scaleFactor)
             invalidate();onTransformChanged?.invoke(transform);return true
         }
@@ -49,17 +51,20 @@ class CropEditorView @JvmOverloads constructor(context: Context,attrs: Attribute
 
     override fun onDraw(canvas: Canvas){
         super.onDraw(canvas);canvas.drawColor(Color.rgb(31,31,35));val b=bitmap?:return
-        mapScale=min(width*.78f/b.width,height*.78f/b.height).coerceAtLeast(.0001f)
-        val dw=b.width*mapScale;val dh=b.height*mapScale
-        imageLeft=(width-dw)/2f;imageTop=(height-dh)/2f
-        imageRect.set(imageLeft,imageTop,imageLeft+dw,imageTop+dh);canvas.drawBitmap(b,null,imageRect,imagePaint)
-        val viewport=TransformCalculator.viewport(b.width.toFloat(),b.height.toFloat(),canvasSize.width.toFloat(),canvasSize.height.toFloat(),transform)
-        cropRect.set(imageLeft+viewport.left*mapScale,imageTop+viewport.top*mapScale,imageLeft+viewport.right*mapScale,imageTop+viewport.bottom*mapScale)
-        canvas.save();canvas.clipOutRect(cropRect);canvas.drawColor(0x99000000.toInt());canvas.restore()
-        borderPaint.strokeWidth=3f*resources.displayMetrics.density;guidePaint.strokeWidth=resources.displayMetrics.density;canvas.drawRect(cropRect,borderPaint)
-        canvas.drawLine(cropRect.centerX(),cropRect.top,cropRect.centerX(),cropRect.bottom,guidePaint);canvas.drawLine(cropRect.left,cropRect.centerY(),cropRect.right,cropRect.centerY(),guidePaint)
-        canvas.drawLine(cropRect.left+cropRect.width()/3,cropRect.top,cropRect.left+cropRect.width()/3,cropRect.bottom,guidePaint);canvas.drawLine(cropRect.left+cropRect.width()*2/3,cropRect.top,cropRect.left+cropRect.width()*2/3,cropRect.bottom,guidePaint)
-        canvas.drawLine(cropRect.left,cropRect.top+cropRect.height()/3,cropRect.right,cropRect.top+cropRect.height()/3,guidePaint);canvas.drawLine(cropRect.left,cropRect.top+cropRect.height()*2/3,cropRect.right,cropRect.top+cropRect.height()*2/3,guidePaint)
+        val ratio=canvasSize.width.toFloat()/canvasSize.height.toFloat()
+        val frameW=min(width*.92f,height*.82f*ratio);val frameH=frameW/ratio
+        frameRect.set((width-frameW)/2f,(height-frameH)/2f,(width+frameW)/2f,(height+frameH)/2f)
+        val result=TransformCalculator.calculate(b.width.toFloat(),b.height.toFloat(),frameW,frameH,transform)
+        val matrix=Matrix().apply{postScale(result.scale,result.scale);postTranslate(frameRect.left+result.translateX,frameRect.top+result.translateY)}
+        // The dimmed area keeps the surrounding image visible while the fixed frame is the exact wallpaper result.
+        canvas.drawBitmap(b,matrix,imagePaint)
+        canvas.save();canvas.clipRect(frameRect);canvas.translate(frameRect.left,frameRect.top)
+        WallpaperRenderer.draw(canvas,b,config,transform,frameW.toInt(),frameH.toInt());canvas.restore()
+        canvas.save();canvas.clipOutRect(frameRect);canvas.drawColor(0x88000000.toInt());canvas.restore()
+        borderPaint.strokeWidth=3f*resources.displayMetrics.density;guidePaint.strokeWidth=resources.displayMetrics.density;canvas.drawRect(frameRect,borderPaint)
+        canvas.drawLine(frameRect.centerX(),frameRect.top,frameRect.centerX(),frameRect.bottom,guidePaint);canvas.drawLine(frameRect.left,frameRect.centerY(),frameRect.right,frameRect.centerY(),guidePaint)
+        canvas.drawLine(frameRect.left+frameRect.width()/3,frameRect.top,frameRect.left+frameRect.width()/3,frameRect.bottom,guidePaint);canvas.drawLine(frameRect.left+frameRect.width()*2/3,frameRect.top,frameRect.left+frameRect.width()*2/3,frameRect.bottom,guidePaint)
+        canvas.drawLine(frameRect.left,frameRect.top+frameRect.height()/3,frameRect.right,frameRect.top+frameRect.height()/3,guidePaint);canvas.drawLine(frameRect.left,frameRect.top+frameRect.height()*2/3,frameRect.right,frameRect.top+frameRect.height()*2/3,guidePaint)
     }
 
     override fun onTouchEvent(event: MotionEvent):Boolean{
@@ -68,7 +73,7 @@ class CropEditorView @JvmOverloads constructor(context: Context,attrs: Attribute
             MotionEvent.ACTION_DOWN->{gestureActive=true;onGestureStarted?.invoke();lastX=event.x;lastY=event.y;snapped=false;parent.requestDisallowInterceptTouchEvent(true)}
             MotionEvent.ACTION_POINTER_DOWN->{lastX=scaleDetector.focusX;lastY=scaleDetector.focusY}
             MotionEvent.ACTION_MOVE->if(!scaleDetector.isInProgress&&event.pointerCount==1){
-                val b=bitmap;if(b!=null){transform=TransformCalculator.panBySource(transform,b.width.toFloat(),b.height.toFloat(),(event.x-lastX)/mapScale,(event.y-lastY)/mapScale);transform=snap(transform,b);invalidate();onTransformChanged?.invoke(transform)};lastX=event.x;lastY=event.y
+                val b=bitmap;if(b!=null){transform=TransformCalculator.moveImageByCanvasPixels(transform,b.width.toFloat(),b.height.toFloat(),frameRect.width(),frameRect.height(),event.x-lastX,event.y-lastY);transform=snap(transform,b);invalidate();onTransformChanged?.invoke(transform)};lastX=event.x;lastY=event.y
             }
             MotionEvent.ACTION_POINTER_UP->{val remaining=if(event.actionIndex==0)1 else 0;if(remaining<event.pointerCount){lastX=event.getX(remaining);lastY=event.getY(remaining)}}
             MotionEvent.ACTION_UP->{performClick();parent.requestDisallowInterceptTouchEvent(false);settle()}
@@ -78,7 +83,8 @@ class CropEditorView @JvmOverloads constructor(context: Context,attrs: Attribute
     override fun performClick():Boolean{super.performClick();return true}
 
     private fun snap(value:CompositionTransform,b:Bitmap):CompositionTransform{
-        val threshold=8f*resources.displayMetrics.density/mapScale
+        val scale=TransformCalculator.calculate(b.width.toFloat(),b.height.toFloat(),frameRect.width(),frameRect.height(),value).scale
+        val threshold=8f*resources.displayMetrics.density/scale.coerceAtLeast(.0001f)
         fun axis(v:Float,size:Float):Float{val px=v*size;val c=floatArrayOf(size/3f,size/2f,size*2f/3f);return c.minByOrNull{abs(it-px)}?.takeIf{abs(it-px)<=threshold}?.div(size)?:v}
         val result=value.copy(centerX=axis(value.centerX,b.width.toFloat()),centerY=axis(value.centerY,b.height.toFloat()))
         if(result!=value&&!snapped){performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);snapped=true};if(result==value)snapped=false;return result
