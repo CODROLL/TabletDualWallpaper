@@ -7,6 +7,12 @@ import org.junit.Test
 import kotlin.math.max
 
 class TransformCalculatorTest {
+    @Test fun pixelEditorOnlyProducesEvenCoordinates(){
+        assertEquals(100,TransformCalculator.nearestEvenPixel(99f))
+        assertEquals(102,TransformCalculator.nearestEvenPixel(101f))
+        assertEquals(-2,TransformCalculator.nearestEvenPixel(-3f))
+    }
+
     @Test fun bitmapSamplingStrictlyCapsDecodedLongEdge(){
         assertEquals(1,BitmapDecoder.calculateSampleSize(4000,2250,4096))
         assertEquals(2,BitmapDecoder.calculateSampleSize(4000,2250,2560))

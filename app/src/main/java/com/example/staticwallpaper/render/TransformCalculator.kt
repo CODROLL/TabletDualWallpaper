@@ -4,6 +4,7 @@ import com.example.staticwallpaper.data.CompositionTransform
 import com.example.staticwallpaper.data.LegacyTransform
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 data class TransformResult(val scale: Float, val translateX: Float, val translateY: Float)
 data class SourceViewport(val left: Float, val top: Float, val right: Float, val bottom: Float) {
@@ -12,6 +13,8 @@ data class SourceViewport(val left: Float, val top: Float, val right: Float, val
 }
 
 object TransformCalculator {
+    fun nearestEvenPixel(value:Float):Int=(value/2f).roundToInt()*2
+
     fun centerCropScale(iw: Float, ih: Float, vw: Float, vh: Float) = max(vw / iw, vh / ih)
     fun fitCenterScale(iw: Float, ih: Float, vw: Float, vh: Float) = min(vw / iw, vh / ih)
 

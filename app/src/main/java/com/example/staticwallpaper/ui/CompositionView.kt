@@ -26,6 +26,7 @@ class CropEditorView @JvmOverloads constructor(context: Context,attrs: Attribute
     private var lastX=0f;private var lastY=0f
     private val frameRect=RectF()
     private var snapped=false
+    private val imageMatrix=Matrix()
     private val imagePaint=Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG)
     private val borderPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{style=Paint.Style.STROKE;color=Color.WHITE}
     private val guidePaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{style=Paint.Style.STROKE;color=0x99FFFFFF.toInt()}
@@ -50,18 +51,18 @@ class CropEditorView @JvmOverloads constructor(context: Context,attrs: Attribute
     fun setExternalTransform(value: CompositionTransform){if(!gestureActive){transform=value;invalidate()}}
 
     override fun onDraw(canvas: Canvas){
-        super.onDraw(canvas);canvas.drawColor(Color.rgb(31,31,35));val b=bitmap?:return
+        super.onDraw(canvas);canvas.drawColor(Color.rgb(28,28,30));val b=bitmap?:return
         val ratio=canvasSize.width.toFloat()/canvasSize.height.toFloat()
         val frameW=min(width*.92f,height*.82f*ratio);val frameH=frameW/ratio
         frameRect.set((width-frameW)/2f,(height-frameH)/2f,(width+frameW)/2f,(height+frameH)/2f)
         val result=TransformCalculator.calculate(b.width.toFloat(),b.height.toFloat(),frameW,frameH,transform)
-        val matrix=Matrix().apply{postScale(result.scale,result.scale);postTranslate(frameRect.left+result.translateX,frameRect.top+result.translateY)}
+        imageMatrix.reset();imageMatrix.setScale(result.scale,result.scale);imageMatrix.postTranslate(frameRect.left+result.translateX,frameRect.top+result.translateY)
         // The dimmed area keeps the surrounding image visible while the fixed frame is the exact wallpaper result.
-        canvas.drawBitmap(b,matrix,imagePaint)
+        canvas.drawBitmap(b,imageMatrix,imagePaint)
         canvas.save();canvas.clipRect(frameRect);canvas.translate(frameRect.left,frameRect.top)
         WallpaperRenderer.draw(canvas,b,config,transform,frameW.toInt(),frameH.toInt());canvas.restore()
         canvas.save();canvas.clipOutRect(frameRect);canvas.drawColor(0x88000000.toInt());canvas.restore()
-        borderPaint.strokeWidth=3f*resources.displayMetrics.density;guidePaint.strokeWidth=resources.displayMetrics.density;canvas.drawRect(frameRect,borderPaint)
+        borderPaint.strokeWidth=2f*resources.displayMetrics.density;guidePaint.strokeWidth=2f*resources.displayMetrics.density;canvas.drawRect(frameRect,borderPaint)
         canvas.drawLine(frameRect.centerX(),frameRect.top,frameRect.centerX(),frameRect.bottom,guidePaint);canvas.drawLine(frameRect.left,frameRect.centerY(),frameRect.right,frameRect.centerY(),guidePaint)
         canvas.drawLine(frameRect.left+frameRect.width()/3,frameRect.top,frameRect.left+frameRect.width()/3,frameRect.bottom,guidePaint);canvas.drawLine(frameRect.left+frameRect.width()*2/3,frameRect.top,frameRect.left+frameRect.width()*2/3,frameRect.bottom,guidePaint)
         canvas.drawLine(frameRect.left,frameRect.top+frameRect.height()/3,frameRect.right,frameRect.top+frameRect.height()/3,guidePaint);canvas.drawLine(frameRect.left,frameRect.top+frameRect.height()*2/3,frameRect.right,frameRect.top+frameRect.height()*2/3,guidePaint)
@@ -107,7 +108,7 @@ class WallpaperPreviewView @JvmOverloads constructor(context:Context,attrs:Attri
     var canvasSize=PixelSize(1,1);set(value){field=value;invalidate()}
     var fillBounds=false;set(value){field=value;invalidate()}
     private val previewRect=RectF();private val borderPaint=Paint(Paint.ANTI_ALIAS_FLAG).apply{style=Paint.Style.STROKE;color=Color.WHITE}
-    override fun onDraw(canvas:Canvas){super.onDraw(canvas);canvas.drawColor(Color.rgb(22,22,25));val b=bitmap?:return
+    override fun onDraw(canvas:Canvas){super.onDraw(canvas);canvas.drawColor(Color.BLACK);val b=bitmap?:return
         val ratio=canvasSize.width.toFloat()/canvasSize.height
         if(fillBounds)previewRect.set(0f,0f,width.toFloat(),height.toFloat())else{val w=min(width*.94f,height*.94f*ratio);val h=w/ratio;previewRect.set((width-w)/2,(height-h)/2,(width+w)/2,(height+h)/2)}
         canvas.save();canvas.clipRect(previewRect);canvas.translate(previewRect.left,previewRect.top);WallpaperRenderer.draw(canvas,b,config,transform,previewRect.width().toInt(),previewRect.height().toInt());canvas.restore()
