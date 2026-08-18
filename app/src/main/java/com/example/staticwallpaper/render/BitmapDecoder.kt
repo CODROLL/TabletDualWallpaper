@@ -9,12 +9,17 @@ import androidx.exifinterface.media.ExifInterface
 import kotlin.math.max
 
 object BitmapDecoder {
+    fun calculateSampleSize(width:Int,height:Int,maxLongEdge:Int):Int {
+        var sample=1
+        while (max(width,height)/sample>maxLongEdge && sample<Int.MAX_VALUE/2) sample*=2
+        return sample
+    }
+
     fun decode(resolver: ContentResolver, uri: Uri, maxLongEdge: Int): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-        var sample = 1
-        while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxLongEdge) sample *= 2
+        val sample=calculateSampleSize(bounds.outWidth,bounds.outHeight,maxLongEdge)
         val options = BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.ARGB_8888 }
         val decoded = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) } ?: return null
         val orientation = resolver.openInputStream(uri)?.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) } ?: 1

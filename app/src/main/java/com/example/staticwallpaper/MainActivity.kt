@@ -81,16 +81,16 @@ class MainActivity:ComponentActivity(){
         }
     }
 
-    @Composable private fun rememberBitmap(uri:String?,mode:MemoryMode):Bitmap?{
-        val lease=remember(uri,mode){mutableStateOf<BitmapCache.Lease?>(null)}
-        LaunchedEffect(uri,mode){lease.value=if(uri==null)null else BitmapCache.acquire(contentResolver,uri,mode)}
-        DisposableEffect(uri,mode){onDispose{lease.value?.close();lease.value=null}}
+    @Composable private fun rememberBitmap(uri:String?,mode:MemoryMode,maxLongEdge:Int?=null):Bitmap?{
+        val lease=remember(uri,mode,maxLongEdge){mutableStateOf<BitmapCache.Lease?>(null)}
+        LaunchedEffect(uri,mode,maxLongEdge){lease.value=if(uri==null)null else if(maxLongEdge==null)BitmapCache.acquire(contentResolver,uri,mode)else BitmapCache.acquire(contentResolver,uri,maxLongEdge)}
+        DisposableEffect(uri,mode,maxLongEdge){onDispose{lease.value?.close();lease.value=null}}
         return lease.value?.bitmap
     }
 
     @Composable private fun Home(config:WallpaperConfig,profile:DisplayProfile,onEdit:(WallpaperTarget)->Unit,onReplace:(WallpaperTarget)->Unit,onPreview:(WallpaperTarget)->Unit,onSettings:()->Unit){
         val orientation=LocalConfiguration.current.orientation
-        val desktopBitmap=rememberBitmap(config.desktop.imageUri,MemoryMode.SAVING);val lockBitmap=rememberBitmap(config.lock.imageUri,MemoryMode.SAVING)
+        val desktopBitmap=rememberBitmap(config.desktop.imageUri,MemoryMode.SAVING,1600);val lockBitmap=rememberBitmap(config.lock.imageUri,MemoryMode.SAVING,1600)
         var applyDialog by remember{mutableStateOf(false)};var copyTarget by remember{mutableStateOf<WallpaperTarget?>(null)};var applyingLock by remember{mutableStateOf(false)}
         fun copyTo(destination:WallpaperTarget){
             val source=if(destination==WallpaperTarget.LOCK)config.desktop else config.lock
@@ -108,6 +108,7 @@ class MainActivity:ComponentActivity(){
             }
         }
         if(applyDialog)AlertDialog(onDismissRequest={applyDialog=false},title={Text("应用壁纸")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Button({applyDialog=false;applyDesktop()},Modifier.fillMaxWidth()){Text("应用桌面")};Button({applyDialog=false;applyLock()},Modifier.fillMaxWidth(),enabled=!applyingLock){Text(if(applyingLock)"正在设置锁屏…" else "应用锁屏")}}},confirmButton={},dismissButton={TextButton({applyDialog=false}){Text("取消")}})
+        if(applyingLock)AlertDialog(onDismissRequest={},title={Text("正在应用锁屏")},text={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)){CircularProgressIndicator(Modifier.size(28.dp));Text("正在生成并交给华为系统，请稍候…")}},confirmButton={})
         if(copyTarget!=null)AlertDialog(onDismissRequest={copyTarget=null},title={Text("复制壁纸设置")},text={Text(if(copyTarget==WallpaperTarget.LOCK)"将桌面图片和横竖屏构图复制到锁屏？锁屏现有设置会被覆盖。" else "将锁屏图片和横竖屏构图复制到桌面？桌面现有设置会被覆盖。")},confirmButton={TextButton({val destination=copyTarget?:return@TextButton;copyTarget=null;copyTo(destination)}){Text("复制")}},dismissButton={TextButton({copyTarget=null}){Text("取消")}})
     }
 

@@ -7,6 +7,12 @@ import org.junit.Test
 import kotlin.math.max
 
 class TransformCalculatorTest {
+    @Test fun bitmapSamplingStrictlyCapsDecodedLongEdge(){
+        assertEquals(1,BitmapDecoder.calculateSampleSize(4000,2250,4096))
+        assertEquals(2,BitmapDecoder.calculateSampleSize(4000,2250,2560))
+        assertEquals(4,BitmapDecoder.calculateSampleSize(6000,3375,1600))
+    }
+
     @Test fun physicalProfilesCoverCommonTabletRatios(){
         listOf(2560 to 1600,2000 to 1200,2160 to 1440,1920 to 1080,1601 to 1201).forEach{(w,h)->
             val p=DisplayProfile(w,h,320);assertEquals(max(w,h),p.landscape.width);assertTrue(p.landscape.width>p.landscape.height);assertEquals(p.landscape.width,p.portrait.height)

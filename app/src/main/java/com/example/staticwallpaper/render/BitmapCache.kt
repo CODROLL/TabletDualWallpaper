@@ -19,10 +19,12 @@ object BitmapCache {
     private data class Entry(val bitmap:Bitmap,var references:Int)
     private val entries=mutableMapOf<Key,Entry>()
 
-    suspend fun acquire(resolver:ContentResolver,uri:String,mode:MemoryMode):Lease?{
-        val key=Key(uri,mode.maxLongEdge)
+    suspend fun acquire(resolver:ContentResolver,uri:String,mode:MemoryMode):Lease? = acquire(resolver,uri,mode.maxLongEdge)
+
+    suspend fun acquire(resolver:ContentResolver,uri:String,maxLongEdge:Int):Lease?{
+        val key=Key(uri,maxLongEdge)
         synchronized(entries){entries[key]?.let{it.references++;return Lease(key,it.bitmap)}}
-        val decoded=withContext(Dispatchers.IO+NonCancellable){runCatching{BitmapDecoder.decode(resolver,Uri.parse(uri),mode.maxLongEdge)}.getOrNull()}?:return null
+        val decoded=withContext(Dispatchers.IO+NonCancellable){runCatching{BitmapDecoder.decode(resolver,Uri.parse(uri),maxLongEdge)}.getOrNull()}?:return null
         if(!currentCoroutineContext().isActive){decoded.recycle();return null}
         synchronized(entries){
             val existing=entries[key]

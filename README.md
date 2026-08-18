@@ -38,7 +38,7 @@
 ./gradlew.bat testDebugUnitTest assembleDebug
 ```
 
-构建产物位于 `app/build/outputs/apk/debug/app-debug.apk`。当前版本为 1.3（versionCode 4）。
+构建产物位于 `app/build/outputs/apk/debug/app-debug.apk`。当前版本为 1.3.1（versionCode 5）。
 
 ## HarmonyOS 说明
 
