@@ -16,8 +16,8 @@ import androidx.compose.ui.unit.sp
 
 /** iOS/iPadOS reference colors published by Apple in 2025, mapped to Android semantic roles. */
 object ApplePalette {
-    val BlueLight=Color(0xFF0088FF)
-    val BlueDark=Color(0xFF0091FF)
+    val PurpleLight=Color(0xFFCB30E0)
+    val PurpleDark=Color(0xFFDB34F2)
     val RedLight=Color(0xFFFF383C)
     val RedDark=Color(0xFFFF4245)
     val Gray2Light=Color(0xFFAEAEB2)
@@ -41,9 +41,9 @@ object AppleMetrics {
 }
 
 private val LightColors=lightColorScheme(
-    primary=ApplePalette.BlueLight,onPrimary=Color.White,
+    primary=ApplePalette.PurpleLight,onPrimary=Color.White,
     primaryContainer=ApplePalette.Gray6Light,onPrimaryContainer=Color.Black,
-    secondary=ApplePalette.BlueLight,onSecondary=Color.White,
+    secondary=ApplePalette.PurpleLight,onSecondary=Color.White,
     background=ApplePalette.Gray6Light,onBackground=Color.Black,
     surface=Color.White,onSurface=Color.Black,
     surfaceVariant=ApplePalette.Gray5Light,onSurfaceVariant=Color.Black,
@@ -52,9 +52,9 @@ private val LightColors=lightColorScheme(
 )
 
 private val DarkColors=darkColorScheme(
-    primary=ApplePalette.BlueDark,onPrimary=Color.White,
+    primary=ApplePalette.PurpleDark,onPrimary=Color.White,
     primaryContainer=ApplePalette.Gray5Dark,onPrimaryContainer=Color.White,
-    secondary=ApplePalette.BlueDark,onSecondary=Color.White,
+    secondary=ApplePalette.PurpleDark,onSecondary=Color.White,
     background=Color.Black,onBackground=Color.White,
     surface=ApplePalette.Gray6Dark,onSurface=Color.White,
     surfaceVariant=ApplePalette.Gray5Dark,onSurfaceVariant=Color.White,

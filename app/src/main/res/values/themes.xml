@@ -1,7 +1,7 @@
 <resources>
     <style name="Theme.StaticWallpaper" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#0088FF</item>
+        <item name="android:colorAccent">#CB30E0</item>
         <item name="android:windowBackground">#F2F2F7</item>
         <item name="android:statusBarColor">#F2F2F7</item>
         <item name="android:navigationBarColor">#F2F2F7</item>

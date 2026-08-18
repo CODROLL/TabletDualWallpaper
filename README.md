@@ -1,13 +1,15 @@
-# TabletDualWallpaper
+# TabletDualWallpaper：Android 平板横竖屏壁纸工具
 
-一款面向 Android 平板的低功耗图片动态壁纸应用。自动读取当前显示设备的物理分辨率，并为桌面、锁屏分别保存横屏和竖屏构图。
+一款面向 Android 平板的低功耗横竖屏壁纸工具。支持横屏竖屏自动切换、横竖屏独立构图、桌面锁屏不同图片、MatePad 与 HarmonyOS 兼容模式。应用会读取当前显示设备的物理分辨率，为桌面和锁屏分别保存 landscape / portrait 构图。
+
+适合搜索“横竖屏壁纸”“平板横屏竖屏切换壁纸”“Android tablet orientation wallpaper”“landscape portrait wallpaper”的用户。
 
 ## 主要功能
 
 - 自动适配 16:10、4:3、3:2、16:9 和非标准平板比例
 - 桌面与锁屏可选择不同图片，并分别保存横竖屏构图
 - 单画布固定取景框：直接拖动图片构图，横屏框宽大于高、竖屏框高大于宽
-- 经典 iPadOS 语义配色、44dp 最小点击区域和动态浅色/深色外观
+- Apple HIG 参考紫色主题、44dp 最小点击区域和动态浅色/深色外观
 - 编辑器左上角高区分度横竖屏选择器，右上角可直接更改图片并撤销
 - 数值构图使用偶数像素输入与 ±2/±10 像素微调
 - 取景区支持焦点缩放、弹性边界、中心/三分线吸附和双击切换
@@ -41,7 +43,11 @@
 ./gradlew.bat testDebugUnitTest assembleDebug
 ```
 
-构建产物位于 `app/build/outputs/apk/debug/app-debug.apk`。当前版本为 1.4（versionCode 6）。
+构建产物位于 `app/build/outputs/apk/debug/app-debug.apk`。当前版本为 1.4.1（versionCode 7）。
+
+## 搜索关键词
+
+横竖屏壁纸、平板横竖屏、横屏竖屏自动切换、横竖屏独立壁纸、Android 平板壁纸、MatePad 壁纸、HarmonyOS 动态壁纸、锁屏壁纸、landscape wallpaper、portrait wallpaper、orientation wallpaper、Android tablet wallpaper、dual orientation wallpaper、WallpaperService、Jetpack Compose wallpaper。
 
 ## HarmonyOS 说明
 
