@@ -137,8 +137,16 @@ class MainActivity:ComponentActivity(){
         BackHandler{requestExit()}
         Scaffold(topBar={TopAppBar(title={Text(if(target==WallpaperTarget.DESKTOP)"编辑桌面壁纸" else "编辑锁屏壁纸")},navigationIcon={TextButton(onClick={requestExit()}){Text("返回")}},actions={TextButton(enabled=undo.isNotEmpty(),onClick={redo.add(local);local=undo.removeAt(undo.lastIndex)}){Text("撤销")};TextButton(enabled=redo.isNotEmpty(),onClick={undo.add(local);local=redo.removeAt(redo.lastIndex)}){Text("重做")};TextButton(onClick={savedBaseline=local;onSave(local)}){Text("完成")};TextButton(onClick={savedBaseline=local;onApply(local,target)}){Text("应用")}})}){padding->
             Column(Modifier.padding(padding).fillMaxSize()){
-                TabRow(if(landscape)0 else 1){Tab(landscape,{landscape=true},text={Text("横屏 ${profile.landscape.width}×${profile.landscape.height}",Modifier.padding(10.dp))});Tab(!landscape,{landscape=false},text={Text("竖屏 ${profile.portrait.width}×${profile.portrait.height}",Modifier.padding(10.dp))})}
-                AndroidView(factory={CropEditorView(it)},update={v->v.bitmap=bitmap;v.config=local;v.canvasSize=size;v.setExternalTransform(t);v.onGestureStarted={gestureStart=local};v.onTransformChanged={local=local.withTransform(target,landscape,it)};v.onGestureFinished={end->local=local.withTransform(target,landscape,end);gestureStart?.let{before->if(before!=local){if(undo.size==50)undo.removeAt(0);undo.add(before);redo.clear()}};gestureStart=null}},modifier=Modifier.weight(1f).fillMaxWidth())
+                Box(Modifier.weight(1f).fillMaxWidth()){
+                    AndroidView(factory={CropEditorView(it)},update={v->v.bitmap=bitmap;v.config=local;v.canvasSize=size;v.setExternalTransform(t);v.onGestureStarted={gestureStart=local};v.onTransformChanged={local=local.withTransform(target,landscape,it)};v.onGestureFinished={end->local=local.withTransform(target,landscape,end);gestureStart?.let{before->if(before!=local){if(undo.size==50)undo.removeAt(0);undo.add(before);redo.clear()}};gestureStart=null}},modifier=Modifier.fillMaxSize())
+                    Surface(Modifier.align(Alignment.TopStart).padding(12.dp),shape=MaterialTheme.shapes.medium,tonalElevation=6.dp){Column(Modifier.padding(8.dp)){
+                        Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                            if(landscape)FilledTonalButton(onClick={landscape=true}){Text("横屏")}else OutlinedButton(onClick={landscape=true}){Text("横屏")}
+                            if(!landscape)FilledTonalButton(onClick={landscape=false}){Text("竖屏")}else OutlinedButton(onClick={landscape=false}){Text("竖屏")}
+                        }
+                        Text("当前画布 ${size.width}×${size.height}",Modifier.padding(horizontal=6.dp,vertical=2.dp),style=MaterialTheme.typography.labelSmall)
+                    }}
+                }
                 EditorTools(local,target,landscape,bitmap,size,numeric,{numeric=!numeric},{commit(setTransform(it))},{next->commit(next)})
             }
         }
@@ -149,7 +157,6 @@ class MainActivity:ComponentActivity(){
         val t=config.transform(target,landscape);val iw=bitmap?.width?.toFloat()?:1f;val ih=bitmap?.height?.toFloat()?:1f
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(6.dp),horizontalArrangement=Arrangement.spacedBy(4.dp)){
             TextButton({setTransform(t.copy(centerX=.5f,centerY=.5f))}){Text("居中")};TextButton({setTransform(TransformCalculator.centerCrop(iw,ih,size.width.toFloat(),size.height.toFloat()))}){Text("填满")};TextButton({setTransform(TransformCalculator.fitCenter())}){Text("完整显示")};TextButton({setTransform(TransformCalculator.centerCrop(iw,ih,size.width.toFloat(),size.height.toFloat()))}){Text("重置")};TextButton(toggleNumeric){Text(if(numeric)"收起数值" else "数值微调")}
-            TextButton({val s=config.source(target);setConfig(config.withSource(target,if(landscape)s.copy(portrait=s.landscape)else s.copy(landscape=s.portrait)))}){Text("复制到${if(landscape)"竖屏" else "横屏"}")}
             TextButton({val other=if(target==WallpaperTarget.DESKTOP)WallpaperTarget.LOCK else WallpaperTarget.DESKTOP;setConfig(config.withTransform(other,landscape,t))}){Text("复制到${if(target==WallpaperTarget.DESKTOP)"锁屏" else "桌面"}")}
         }
         if(numeric){var x by remember(t.centerX){mutableStateOf("%.1f".format(t.centerX*iw))};var y by remember(t.centerY){mutableStateOf("%.1f".format(t.centerY*ih))};var z by remember(t.zoom){mutableStateOf("%.1f".format(t.zoom*100))}
