@@ -14,5 +14,14 @@
             <intent-filter><action android:name="android.service.wallpaper.WallpaperService" /></intent-filter>
             <meta-data android:name="android.service.wallpaper" android:resource="@xml/wallpaper" />
         </service>
+        <service
+            android:name=".service.ExperimentalLockWallpaperService"
+            android:directBootAware="true"
+            android:exported="true"
+            android:label="@string/experimental_lock_wallpaper_name"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter><action android:name="android.service.wallpaper.WallpaperService" /></intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/experimental_lock_wallpaper" />
+        </service>
     </application>
 </manifest>

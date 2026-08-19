@@ -2,4 +2,6 @@
     <string name="app_name">静态动态壁纸</string>
     <string name="wallpaper_name">静态图片壁纸</string>
     <string name="wallpaper_description">低功耗横竖屏独立构图壁纸</string>
+    <string name="experimental_lock_wallpaper_name">实验性锁屏横竖屏壁纸</string>
+    <string name="experimental_lock_wallpaper_description">仅使用锁屏配置；需由系统预览页选择应用到锁屏</string>
 </resources>

@@ -30,7 +30,8 @@ object LockScreenSetter {
         var output: Bitmap? = null
         var renderedFile: File? = null
         try {
-            val uri=requireNotNull(config.lock.imageUri){"请先选择锁屏图片"}
+            val selection=config.renderSelection(WallpaperTarget.LOCK,width,height)
+            val uri=requireNotNull(selection.imageUri){"请先选择当前方向的锁屏图片"}
             val manager=WallpaperManager.getInstance(context)
             check(manager.isWallpaperSupported){"此设备不支持由应用设置壁纸"}
             check(manager.isSetWallpaperAllowed){"系统策略不允许应用修改壁纸"}
@@ -39,7 +40,7 @@ object LockScreenSetter {
             output=Bitmap.createBitmap(safeWidth,safeHeight,Bitmap.Config.RGB_565)
             WallpaperRenderer.draw(
                 Canvas(output),lease.bitmap,config,
-                config.transform(WallpaperTarget.LOCK,width>height),safeWidth,safeHeight
+                selection.transform,safeWidth,safeHeight
             )
             renderedFile=File.createTempFile("lock-wallpaper-",".jpg",context.cacheDir)
             FileOutputStream(renderedFile).use{stream->check(output.compress(Bitmap.CompressFormat.JPEG,95,stream)){"无法生成锁屏文件"}}

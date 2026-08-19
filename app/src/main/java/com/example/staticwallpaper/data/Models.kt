@@ -12,8 +12,24 @@ data class CompositionTransform(
 data class WallpaperSourceConfig(
     val imageUri: String? = null,
     val landscape: CompositionTransform = CompositionTransform(),
-    val portrait: CompositionTransform = CompositionTransform()
-)
+    val portrait: CompositionTransform = CompositionTransform(),
+    /** Optional portrait override. Null keeps existing configurations on one shared image. */
+    val portraitImageUri: String? = null
+) {
+    fun imageUri(landscape: Boolean): String? =
+        if (landscape) imageUri else portraitImageUri ?: imageUri
+
+    fun withImageUri(landscape: Boolean, value: String): WallpaperSourceConfig =
+        if (landscape) {
+            // Preserve the image that portrait was inheriting before landscape changes.
+            copy(imageUri = value, portraitImageUri = portraitImageUri ?: imageUri)
+        } else {
+            copy(portraitImageUri = value)
+        }
+
+    fun withSharedImageUri(value: String): WallpaperSourceConfig =
+        copy(imageUri = value, portraitImageUri = null)
+}
 
 data class LegacyTransform(val scale: Float, val offsetX: Float, val offsetY: Float)
 data class LegacyConfig(
@@ -45,4 +61,19 @@ data class WallpaperConfig(
         val source = source(target)
         return withSource(target, if (landscape) source.copy(landscape = value) else source.copy(portrait = value))
     }
+
+    fun renderSelection(target: WallpaperTarget, width: Int, height: Int): WallpaperRenderSelection {
+        val landscape = width > height
+        return WallpaperRenderSelection(
+            imageUri = source(target).imageUri(landscape),
+            transform = transform(target, landscape),
+            landscape = landscape
+        )
+    }
 }
+
+data class WallpaperRenderSelection(
+    val imageUri: String?,
+    val transform: CompositionTransform,
+    val landscape: Boolean
+)

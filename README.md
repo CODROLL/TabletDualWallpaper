@@ -52,3 +52,9 @@
 ## HarmonyOS 说明
 
 HarmonyOS 4.2 没有面向普通三方 ArkTS 应用的公开动态壁纸提供者 API。本项目不伪造鸿蒙接口，而通过设备 Android 兼容层调用标准 `android.service.wallpaper.WallpaperService`。不同固件/地区版本可能隐藏动态壁纸入口，需在目标真机验证。
+
+## dev：实验性动态锁屏
+
+`dev` 分支额外注册 `ExperimentalLockWallpaperService`，它只读取锁屏配置，并根据系统提供的真实 Wallpaper Surface 尺寸在锁屏横屏图和竖屏图之间切换。服务没有帧循环，只在 Surface、可见性或配置变化时绘制；启动前会将两张锁屏原图同步到设备保护存储，以支持 `directBootAware`。
+
+测试入口：应用壁纸 → 应用锁屏 → 动态锁屏（实验）→ 打开系统预览。只有系统页面明确提供“锁屏”或“仅锁屏”选项时才继续。如果只提供桌面或同时应用，请取消，避免实验组件替换桌面壁纸。最终能力由设备固件决定，应用不调用隐藏 API，也不能强制厂商 SystemUI 创建锁屏 Engine。

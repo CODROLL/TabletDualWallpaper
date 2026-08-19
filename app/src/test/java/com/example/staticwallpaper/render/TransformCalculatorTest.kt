@@ -105,6 +105,41 @@ class TransformCalculatorTest {
         val copied=c.copy(lock=d.copy());val changed=copied.copy(lock=copied.lock.copy(imageUri="changed"));assertEquals("desktop",changed.desktop.imageUri);assertEquals("changed",changed.lock.imageUri)
     }
 
+    @Test fun lockRenderSelectionUsesRealSurfaceOrientation(){
+        val landscapeTransform=CompositionTransform(2f,.25f,.4f)
+        val portraitTransform=CompositionTransform(3f,.75f,.6f)
+        val config=WallpaperConfig(lock=WallpaperSourceConfig(
+            imageUri="lock-landscape",
+            landscape=landscapeTransform,
+            portrait=portraitTransform,
+            portraitImageUri="lock-portrait"
+        ))
+
+        val landscape=config.renderSelection(WallpaperTarget.LOCK,2560,1600)
+        assertTrue(landscape.landscape)
+        assertEquals("lock-landscape",landscape.imageUri)
+        assertEquals(landscapeTransform,landscape.transform)
+
+        val portrait=config.renderSelection(WallpaperTarget.LOCK,1600,2560)
+        assertFalse(portrait.landscape)
+        assertEquals("lock-portrait",portrait.imageUri)
+        assertEquals(portraitTransform,portrait.transform)
+    }
+
+    @Test fun lockPortraitFallsBackToSharedImageUntilItIsReplaced(){
+        val shared=WallpaperSourceConfig(imageUri="shared")
+        assertEquals("shared",shared.imageUri(true))
+        assertEquals("shared",shared.imageUri(false))
+
+        val replacedPortrait=shared.withImageUri(false,"portrait")
+        assertEquals("shared",replacedPortrait.imageUri(true))
+        assertEquals("portrait",replacedPortrait.imageUri(false))
+
+        val replacedLandscape=replacedPortrait.withImageUri(true,"landscape")
+        assertEquals("landscape",replacedLandscape.imageUri(true))
+        assertEquals("portrait",replacedLandscape.imageUri(false))
+    }
+
     @Test fun editHistorySupportsReplaceUndoRedoAndDiscard(){
         val original=WallpaperConfig(desktop=WallpaperSourceConfig("old"));val replacement=original.copy(desktop=WallpaperSourceConfig("new"));val h=EditHistory(original)
         h.commit(replacement);assertEquals("new",h.current.desktop.imageUri);assertEquals("old",h.undo().desktop.imageUri);assertEquals("new",h.redo().desktop.imageUri);assertEquals("old",original.desktop.imageUri)
