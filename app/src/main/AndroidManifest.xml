@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-feature android:name="android.software.live_wallpaper" android:required="false" />
     <queries><intent><action android:name="android.service.wallpaper.WallpaperService" /></intent></queries>
     <application android:allowBackup="true" android:icon="@drawable/ic_wallpaper" android:label="@string/app_name" android:supportsRtl="true" android:theme="@style/Theme.StaticWallpaper">
@@ -15,13 +19,15 @@
             <meta-data android:name="android.service.wallpaper" android:resource="@xml/wallpaper" />
         </service>
         <service
-            android:name=".service.ExperimentalLockWallpaperService"
-            android:directBootAware="true"
-            android:exported="true"
-            android:label="@string/experimental_lock_wallpaper_name"
-            android:permission="android.permission.BIND_WALLPAPER">
-            <intent-filter><action android:name="android.service.wallpaper.WallpaperService" /></intent-filter>
-            <meta-data android:name="android.service.wallpaper" android:resource="@xml/experimental_lock_wallpaper" />
+            android:name=".service.AutoLockWallpaperService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-enabled monitoring of tablet orientation to reapply the selected static lock-screen image" />
         </service>
+        <receiver android:name=".service.AutoLockBootReceiver" android:enabled="true" android:exported="true">
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
+        </receiver>
     </application>
 </manifest>

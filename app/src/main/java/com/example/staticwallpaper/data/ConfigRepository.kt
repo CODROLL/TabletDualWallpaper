@@ -24,6 +24,7 @@ class ConfigRepository(private val context: Context) {
         private val KPS=f("v2_kps");private val KPCX=f("kpcx");private val KPCY=f("kpcy");private val KPAB=b("kpab")
         private val BG=stringPreferencesKey("bg");private val COLOR=longPreferencesKey("color")
         private val PARALLAX=booleanPreferencesKey("parallax");private val MEMORY=stringPreferencesKey("memory")
+        private val AUTO_LOCK=booleanPreferencesKey("auto_lock_enabled")
         private val LEGACY_TARGET=stringPreferencesKey("legacy_dynamic_target")
 
         // Version-1 keys retained only for one-time migration.
@@ -46,6 +47,7 @@ class ConfigRepository(private val context: Context) {
                 ),
                 backgroundMode=background,backgroundColor=p[COLOR] ?: 0xFF000000,
                 parallaxEnabled=p[PARALLAX] ?: false,memoryMode=memory,
+                autoLockEnabled=p[AUTO_LOCK] ?: false,
                 legacyDynamicTarget=runCatching{WallpaperTarget.valueOf(p[LEGACY_TARGET]?:"DESKTOP")}.getOrDefault(WallpaperTarget.DESKTOP)
             )
         } else {
@@ -55,7 +57,7 @@ class ConfigRepository(private val context: Context) {
                 LegacyTransform(p[OLD_KLS]?:p[LS]?:1f,p[OLD_KLX]?:p[LX]?:0f,p[OLD_KLY]?:p[LY]?:0f),
                 LegacyTransform(p[OLD_KPS]?:p[PS]?:1f,p[OLD_KPX]?:p[PX]?:0f,p[OLD_KPY]?:p[PY]?:0f)
             )
-            WallpaperConfig(desktop=WallpaperSourceConfig(oldUri),lock=WallpaperSourceConfig(oldUri),backgroundMode=background,backgroundColor=p[COLOR]?:0xFF000000,parallaxEnabled=p[PARALLAX]?:false,memoryMode=memory,legacy=legacy)
+            WallpaperConfig(desktop=WallpaperSourceConfig(oldUri),lock=WallpaperSourceConfig(oldUri),backgroundMode=background,backgroundColor=p[COLOR]?:0xFF000000,parallaxEnabled=p[PARALLAX]?:false,memoryMode=memory,autoLockEnabled=p[AUTO_LOCK]?:false,legacy=legacy)
         }
     }
 
@@ -68,14 +70,10 @@ class ConfigRepository(private val context: Context) {
             putNullable(p,D_URI,c.desktop.imageUri);putNullable(p,K_URI,c.lock.imageUri);putNullable(p,K_PORTRAIT_URI,c.lock.portraitImageUri)
             writeTransform(p,DLS,DLCX,DLCY,DLAB,c.desktop.landscape);writeTransform(p,DPS,DPCX,DPCY,DPAB,c.desktop.portrait)
             writeTransform(p,KLS,KLCX,KLCY,KLAB,c.lock.landscape);writeTransform(p,KPS,KPCX,KPCY,KPAB,c.lock.portrait)
-            p[BG]=c.backgroundMode.name;p[COLOR]=c.backgroundColor;p[PARALLAX]=c.parallaxEnabled;p[MEMORY]=c.memoryMode.name;p[LEGACY_TARGET]=c.legacyDynamicTarget.name
+            p[BG]=c.backgroundMode.name;p[COLOR]=c.backgroundColor;p[PARALLAX]=c.parallaxEnabled;p[MEMORY]=c.memoryMode.name;p[AUTO_LOCK]=c.autoLockEnabled;p[LEGACY_TARGET]=c.legacyDynamicTarget.name
         }
-        runCatching { DirectBootConfigStore.sync(context, c) }
         context.sendBroadcast(Intent(ACTION_CONFIG_CHANGED).setPackage(context.packageName))
     }
-
-    suspend fun prepareExperimentalLock(c: WallpaperConfig): Result<Unit> =
-        runCatching { DirectBootConfigStore.sync(context, c) }
 
     suspend fun migrateLegacy(c: WallpaperConfig,imageWidth: Int,imageHeight: Int,profile: DisplayProfile): WallpaperConfig {
         val old=c.legacy ?: return c

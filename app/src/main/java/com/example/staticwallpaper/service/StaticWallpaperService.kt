@@ -8,12 +8,10 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.os.Handler
 import android.os.HandlerThread
-import android.os.UserManager
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
 import androidx.core.content.ContextCompat
 import com.example.staticwallpaper.data.ConfigRepository
-import com.example.staticwallpaper.data.DirectBootConfigStore
 import com.example.staticwallpaper.data.DisplayProfile
 import com.example.staticwallpaper.data.WallpaperConfig
 import com.example.staticwallpaper.data.WallpaperTarget
@@ -225,18 +223,4 @@ abstract class RenderingWallpaperService : WallpaperService() {
 /** Stable component that remains dedicated to the desktop configuration. */
 class StaticWallpaperService : RenderingWallpaperService() {
     override val renderingTarget: WallpaperTarget = WallpaperTarget.DESKTOP
-}
-
-/** Dedicated experiment that always renders the lock configuration. */
-class ExperimentalLockWallpaperService : RenderingWallpaperService() {
-    override val renderingTarget: WallpaperTarget = WallpaperTarget.LOCK
-
-    override suspend fun loadConfig(): WallpaperConfig {
-        val userManager = getSystemService(UserManager::class.java)
-        return if (userManager?.isUserUnlocked == false) {
-            DirectBootConfigStore.read(this) ?: WallpaperConfig()
-        } else {
-            super.loadConfig()
-        }
-    }
 }

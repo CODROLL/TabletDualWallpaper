@@ -49,6 +49,7 @@ data class WallpaperConfig(
     val backgroundColor: Long = 0xFF000000,
     val parallaxEnabled: Boolean = false,
     val memoryMode: MemoryMode = MemoryMode.BALANCED,
+    val autoLockEnabled: Boolean = false,
     val legacyDynamicTarget: WallpaperTarget = WallpaperTarget.DESKTOP,
     val legacy: LegacyConfig? = null
 ) {

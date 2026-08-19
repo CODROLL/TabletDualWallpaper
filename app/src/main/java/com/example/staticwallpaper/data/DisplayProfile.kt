@@ -1,8 +1,10 @@
 package com.example.staticwallpaper.data
 
 import android.app.Activity
+import android.content.Context
 import android.os.Build
 import android.util.DisplayMetrics
+import android.view.WindowManager
 import kotlin.math.max
 import kotlin.math.min
 
@@ -23,6 +25,20 @@ data class DisplayProfile(val physicalWidth: Int, val physicalHeight: Int, val d
             }
             val metrics = DisplayMetrics()
             activity.windowManager.defaultDisplay.getRealMetrics(metrics)
+            return DisplayProfile(metrics.widthPixels, metrics.heightPixels, metrics.densityDpi)
+        }
+
+        @Suppress("DEPRECATION")
+        fun from(context: Context): DisplayProfile {
+            val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val display = if (Build.VERSION.SDK_INT >= 30) context.display ?: windowManager.defaultDisplay
+            else windowManager.defaultDisplay
+            val mode = display.mode
+            if (mode.physicalWidth > 0 && mode.physicalHeight > 0) {
+                return DisplayProfile(mode.physicalWidth, mode.physicalHeight, context.resources.displayMetrics.densityDpi)
+            }
+            val metrics = DisplayMetrics()
+            display.getRealMetrics(metrics)
             return DisplayProfile(metrics.widthPixels, metrics.heightPixels, metrics.densityDpi)
         }
     }

@@ -1,9 +1,12 @@
 package com.example.staticwallpaper
 
+import android.Manifest
 import android.app.WallpaperManager
 import android.content.*
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -32,13 +35,14 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.staticwallpaper.data.*
 import com.example.staticwallpaper.render.BitmapCache
 import com.example.staticwallpaper.render.LockScreenSetter
 import com.example.staticwallpaper.render.TransformCalculator
 import com.example.staticwallpaper.service.StaticWallpaperService
-import com.example.staticwallpaper.service.ExperimentalLockWallpaperService
+import com.example.staticwallpaper.service.AutoLockWallpaperService
 import com.example.staticwallpaper.ui.CropEditorView
 import com.example.staticwallpaper.ui.AppleMetrics
 import com.example.staticwallpaper.ui.AppleTabletTheme
@@ -104,7 +108,7 @@ class MainActivity:ComponentActivity(){
     @Composable private fun Home(config:WallpaperConfig,profile:DisplayProfile,onEdit:(WallpaperTarget)->Unit,onReplace:(WallpaperTarget)->Unit,onPreview:(WallpaperTarget)->Unit,onSettings:()->Unit){
         val orientation=LocalConfiguration.current.orientation
         val desktopBitmap=rememberBitmap(config.desktop.imageUri(true),MemoryMode.SAVING,1600);val lockBitmap=rememberBitmap(config.lock.imageUri(true),MemoryMode.SAVING,1600)
-        var applyDialog by remember{mutableStateOf(false)};var lockModeDialog by remember{mutableStateOf(false)};var experimentalDialog by remember{mutableStateOf(false)};var copyTarget by remember{mutableStateOf<WallpaperTarget?>(null)};var applyingLock by remember{mutableStateOf(false)}
+        var applyDialog by remember{mutableStateOf(false)};var lockModeDialog by remember{mutableStateOf(false)};var copyTarget by remember{mutableStateOf<WallpaperTarget?>(null)};var applyingLock by remember{mutableStateOf(false)}
         fun copyTo(destination:WallpaperTarget){
             val source=if(destination==WallpaperTarget.LOCK)config.desktop else config.lock
             if(source.imageUri==null){toast("请先选择要复制的图片");return}
@@ -113,6 +117,16 @@ class MainActivity:ComponentActivity(){
         }
         fun applyDesktop(){if(config.desktop.imageUri==null)toast("请先选择桌面图片")else openWallpaperPreview()}
         fun applyLock(){if(config.lock.imageUri(orientation==Configuration.ORIENTATION_LANDSCAPE)==null){toast("请先选择当前方向的锁屏图片");return};if(applyingLock)return;applyingLock=true;lifecycleScope.launch{try{setStaticLock(config,profile.canvas(orientation==Configuration.ORIENTATION_LANDSCAPE))}finally{applyingLock=false}}}
+        fun enableAutoLock(){
+            if(config.lock.imageUri(true)==null||config.lock.imageUri(false)==null){toast("请先设置横屏和竖屏锁屏图片");return}
+            lifecycleScope.launch{
+                val enabled=config.copy(autoLockEnabled=true);repo.save(enabled)
+                runCatching{AutoLockWallpaperService.start(applicationContext)}.onSuccess{toast("已开启锁屏横竖自动切换")}.onFailure{repo.save(enabled.copy(autoLockEnabled=false));toast("无法启动自动切换：${it.message}")}
+            }
+        }
+        val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){granted->if(granted)enableAutoLock()else toast("需要通知权限才能显示并保持自动切换服务")}
+        fun requestAutoLock(){if(Build.VERSION.SDK_INT>=33&&ContextCompat.checkSelfPermission(this@MainActivity,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)else enableAutoLock()}
+        fun disableAutoLock(){lifecycleScope.launch{repo.save(config.copy(autoLockEnabled=false));stopService(Intent(applicationContext,AutoLockWallpaperService::class.java));toast("已停止锁屏横竖自动切换")}}
         Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={TopAppBar(title={Text("TabletDualWallpaper",fontWeight=FontWeight.SemiBold)},actions={IconButton(onClick=onSettings,modifier=Modifier.size(AppleMetrics.ControlHeight)){Icon(Icons.Default.Settings,"设置")}})},bottomBar={Surface(shadowElevation=8.dp){Button(onClick={applyDialog=true},Modifier.fillMaxWidth().padding(16.dp).heightIn(min=AppleMetrics.ControlHeight)){Text("应用壁纸")}}}){padding->
             BoxWithConstraints(Modifier.padding(padding).padding(16.dp).fillMaxSize()){
                 val wide=maxWidth>=720.dp
@@ -121,8 +135,7 @@ class MainActivity:ComponentActivity(){
             }
         }
         if(applyDialog)AlertDialog(onDismissRequest={applyDialog=false},title={Text("应用壁纸")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Button({applyDialog=false;applyDesktop()},Modifier.fillMaxWidth().heightIn(min=AppleMetrics.ControlHeight)){Text("应用桌面")};Button({applyDialog=false;lockModeDialog=true},Modifier.fillMaxWidth().heightIn(min=AppleMetrics.ControlHeight),enabled=!applyingLock){Text(if(applyingLock)"正在设置锁屏…" else "应用锁屏")}}},confirmButton={},dismissButton={TextButton({applyDialog=false},modifier=Modifier.heightIn(min=AppleMetrics.ControlHeight)){Text("取消")}})
-        if(lockModeDialog)AlertDialog(onDismissRequest={lockModeDialog=false},title={Text("选择锁屏方式")},text={Column(verticalArrangement=Arrangement.spacedBy(10.dp)){Button({lockModeDialog=false;applyLock()},Modifier.fillMaxWidth().heightIn(min=AppleMetrics.ControlHeight)){Text("静态锁屏（稳定）")};OutlinedButton({lockModeDialog=false;experimentalDialog=true},Modifier.fillMaxWidth().heightIn(min=AppleMetrics.ControlHeight)){Text("动态锁屏（实验）")};Text("实验模式能随横竖屏自动切换图片，但是否可用于锁屏由设备系统决定。",style=MaterialTheme.typography.bodySmall)}},confirmButton={},dismissButton={TextButton({lockModeDialog=false}){Text("取消")}})
-        if(experimentalDialog)AlertDialog(onDismissRequest={experimentalDialog=false},title={Text("实验性动态锁屏")},text={Text("接下来由系统壁纸预览页接管。只有页面明确提供“锁屏”或“仅锁屏”选项时才继续；如果只提供桌面或同时应用，请取消，避免覆盖桌面壁纸。")},confirmButton={Button({experimentalDialog=false;openExperimentalLockPreview(config)}){Text("打开系统预览")}},dismissButton={TextButton({experimentalDialog=false}){Text("取消")}})
+        if(lockModeDialog)AlertDialog(onDismissRequest={lockModeDialog=false},title={Text("选择锁屏方式")},text={Column(verticalArrangement=Arrangement.spacedBy(10.dp)){Button({lockModeDialog=false;applyLock()},Modifier.fillMaxWidth().heightIn(min=AppleMetrics.ControlHeight)){Text("应用当前方向静态锁屏")};if(config.autoLockEnabled)OutlinedButton({lockModeDialog=false;disableAutoLock()},Modifier.fillMaxWidth().heightIn(min=AppleMetrics.ControlHeight)){Text("停止自动跟随旋转")}else OutlinedButton({lockModeDialog=false;requestAutoLock()},Modifier.fillMaxWidth().heightIn(min=AppleMetrics.ControlHeight)){Text("开启自动跟随旋转")};Text(if(config.autoLockEnabled)"自动切换正在运行。旋转稳定后会重新设置对应方向的静态锁屏。" else "开启后会显示常驻通知，并在旋转稳定后重新设置静态锁屏；华为省电策略仍可能终止服务。",style=MaterialTheme.typography.bodySmall)}},confirmButton={},dismissButton={TextButton({lockModeDialog=false}){Text("取消")}})
         if(applyingLock)AlertDialog(onDismissRequest={},title={Text("正在应用锁屏")},text={Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)){CircularProgressIndicator(Modifier.size(28.dp));Text("正在生成并交给华为系统，请稍候…")}},confirmButton={})
         if(copyTarget!=null)AlertDialog(onDismissRequest={copyTarget=null},title={Text("复制壁纸设置")},text={Text(if(copyTarget==WallpaperTarget.LOCK)"将桌面图片和横竖屏构图复制到锁屏？锁屏现有设置会被覆盖。" else "将锁屏图片和横竖屏构图复制到桌面？桌面现有设置会被覆盖。")},confirmButton={TextButton({val destination=copyTarget?:return@TextButton;copyTarget=null;copyTo(destination)}){Text("复制")}},dismissButton={TextButton({copyTarget=null}){Text("取消")}})
     }
@@ -203,15 +216,6 @@ class MainActivity:ComponentActivity(){
     @Composable private fun Settings(config:WallpaperConfig,save:(WallpaperConfig)->Unit,back:()->Unit){Scaffold(containerColor=MaterialTheme.colorScheme.background,topBar={TopAppBar(title={Text("设置",fontWeight=FontWeight.SemiBold)},navigationIcon={TextButton(onClick=back,modifier=Modifier.heightIn(min=AppleMetrics.ControlHeight)){Text("返回")}})}){p->Column(Modifier.padding(p).padding(20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)){Text("背景填充方式",style=MaterialTheme.typography.titleMedium);BackgroundMode.entries.forEach{m->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(config.backgroundMode==m,{save(config.copy(backgroundMode=m))});Text(when(m){BackgroundMode.BLACK->"黑色背景";BackgroundMode.COLOR->"自定义纯色";BackgroundMode.EDGE->"图片边缘颜色";BackgroundMode.BLUR->"放大柔化背景"})}};HorizontalDivider();Row(Modifier.fillMaxWidth().heightIn(min=AppleMetrics.ControlHeight),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically){Text("跟随桌面滑动");Switch(config.parallaxEnabled,{save(config.copy(parallaxEnabled=it))})};Text("图片质量 / 内存模式",style=MaterialTheme.typography.titleMedium);MemoryMode.entries.forEach{m->Row(verticalAlignment=Alignment.CenterVertically){RadioButton(config.memoryMode==m,{save(config.copy(memoryMode=m))});Text("${m.name}（最长边 ${m.maxLongEdge}）")}}}}}
 
     private fun openWallpaperPreview(){val component=ComponentName(this,StaticWallpaperService::class.java);try{startActivity(Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,component))}catch(_:Exception){try{startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))}catch(_:Exception){toast("系统未提供动态壁纸选择器")}}}
-    private fun openExperimentalLockPreview(config:WallpaperConfig){
-        lifecycleScope.launch{
-            val prepared=repo.prepareExperimentalLock(config)
-            if(prepared.isFailure){toast("无法准备实验锁屏图片：${prepared.exceptionOrNull()?.message}");return@launch}
-            val component=ComponentName(this@MainActivity,ExperimentalLockWallpaperService::class.java)
-            try{startActivity(Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,component))}
-            catch(_:Exception){try{startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER));toast("请在系统列表中选择“实验性锁屏横竖屏壁纸”") }catch(_:Exception){toast("系统未提供动态壁纸选择器，无法测试动态锁屏")}}
-        }
-    }
     private suspend fun setStaticLock(config:WallpaperConfig,size:PixelSize){val result=LockScreenSetter.apply(applicationContext,config,size.width,size.height);toast(result.fold({"锁屏画面设置成功"},{"锁屏设置失败：${it.message}"}))}
     private fun toast(message:String)=Toast.makeText(this,message,Toast.LENGTH_LONG).show()
     companion object{private val imageTypes=arrayOf("image/png","image/jpeg","image/webp")}
