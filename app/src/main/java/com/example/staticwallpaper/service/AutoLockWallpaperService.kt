@@ -12,14 +12,17 @@ import android.content.pm.ServiceInfo
 import android.content.res.Configuration
 import android.hardware.display.DisplayManager
 import android.graphics.drawable.Icon
+import android.hardware.SensorManager
 import android.os.Build
 import android.os.IBinder
+import android.view.OrientationEventListener
 import androidx.core.content.ContextCompat
 import com.example.staticwallpaper.MainActivity
 import com.example.staticwallpaper.R
 import com.example.staticwallpaper.data.ConfigRepository
 import com.example.staticwallpaper.data.CompositionTransform
 import com.example.staticwallpaper.data.DisplayProfile
+import com.example.staticwallpaper.data.PhysicalOrientationResolver
 import com.example.staticwallpaper.data.WallpaperConfig
 import com.example.staticwallpaper.data.WallpaperTarget
 import com.example.staticwallpaper.render.LockScreenSetter
@@ -41,8 +44,13 @@ class AutoLockWallpaperService : Service(), DisplayManager.DisplayListener {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val repository by lazy { ConfigRepository(applicationContext) }
     private lateinit var displayManager: DisplayManager
+    private lateinit var orientationListener: OrientationEventListener
     private var pendingApply: Job? = null
-    private var config = WallpaperConfig()
+    @Volatile private var config = WallpaperConfig()
+    @Volatile private var sensorLandscape: Boolean? = null
+    @Volatile private var sensorDegrees: Int? = null
+    private var sensorAvailable = false
+    private var naturalLandscape = true
     private var lastApplied: ApplyKey? = null
 
     override fun onCreate() {
@@ -51,13 +59,31 @@ class AutoLockWallpaperService : Service(), DisplayManager.DisplayListener {
         startForegroundCompat(notification("正在启动锁屏横竖自动切换…"))
         displayManager = getSystemService(DisplayManager::class.java)
         displayManager.registerDisplayListener(this, null)
+        val physicalProfile = DisplayProfile.from(this)
+        naturalLandscape = physicalProfile.physicalWidth >= physicalProfile.physicalHeight
+        orientationListener = object : OrientationEventListener(this, SensorManager.SENSOR_DELAY_NORMAL) {
+            override fun onOrientationChanged(orientation: Int) {
+                val detected = PhysicalOrientationResolver.isLandscape(orientation, naturalLandscape) ?: return
+                sensorDegrees = orientation
+                if (detected == sensorLandscape) return
+                sensorLandscape = detected
+                scheduleApply(force = false, requestedLandscape = detected, detectedDegrees = orientation)
+            }
+        }
+        sensorAvailable = orientationListener.canDetectOrientation()
+        if (sensorAvailable) {
+            orientationListener.enable()
+            updateNotification("方向传感器已启动，正在等待稳定方向…")
+        } else {
+            updateNotification("方向传感器不可用，将跟随系统显示方向")
+        }
         scope.launch {
             repository.config.collectLatest { next ->
                 config = next
                 if (!next.autoLockEnabled) {
                     stopServiceNow()
                 } else {
-                    scheduleApply(force = true)
+                    scheduleApply(force = true, requestedLandscape = sensorLandscape, detectedDegrees = sensorDegrees)
                 }
             }
         }
@@ -72,27 +98,35 @@ class AutoLockWallpaperService : Service(), DisplayManager.DisplayListener {
             }
             return START_NOT_STICKY
         }
-        scheduleApply(force = false)
+        scheduleApply(force = false, requestedLandscape = sensorLandscape, detectedDegrees = sensorDegrees)
         return START_STICKY
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        scheduleApply(force = false)
+        if (!sensorAvailable) scheduleApply(force = false)
     }
 
-    override fun onDisplayChanged(displayId: Int) = scheduleApply(force = false)
+    override fun onDisplayChanged(displayId: Int) {
+        if (!sensorAvailable) scheduleApply(force = false)
+    }
     override fun onDisplayAdded(displayId: Int) = Unit
     override fun onDisplayRemoved(displayId: Int) = Unit
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun scheduleApply(force: Boolean) {
+    @Synchronized
+    private fun scheduleApply(
+        force: Boolean,
+        requestedLandscape: Boolean? = null,
+        detectedDegrees: Int? = null
+    ) {
         pendingApply?.cancel()
         pendingApply = scope.launch {
             delay(ORIENTATION_DEBOUNCE_MS)
             val snapshot = config
             if (!snapshot.autoLockEnabled) return@launch
-            val landscape = currentLandscape()
+            if (requestedLandscape != null && sensorLandscape != requestedLandscape) return@launch
+            val landscape = requestedLandscape ?: sensorLandscape ?: currentLandscape()
             val profile = DisplayProfile.from(this@AutoLockWallpaperService)
             val size = profile.canvas(landscape)
             val selection = snapshot.renderSelection(WallpaperTarget.LOCK, size.width, size.height)
@@ -110,11 +144,12 @@ class AutoLockWallpaperService : Service(), DisplayManager.DisplayListener {
                 return@launch
             }
 
-            updateNotification("正在应用${if (landscape) "横屏" else "竖屏"}锁屏…")
+            val degreesText = detectedDegrees?.let { "（传感器 ${it}°）" }.orEmpty()
+            updateNotification("识别为${if (landscape) "横屏" else "竖屏"}$degreesText，正在应用…")
             LockScreenSetter.apply(applicationContext, snapshot, size.width, size.height)
                 .onSuccess {
                     lastApplied = key
-                    updateNotification("已应用${if (landscape) "横屏" else "竖屏"}锁屏，正在监测方向")
+                    updateNotification("已应用${if (landscape) "横屏" else "竖屏"}锁屏$degreesText，继续监测方向")
                 }
                 .onFailure {
                     updateNotification("自动切换失败：${it.message ?: "系统拒绝设置"}")
@@ -206,6 +241,7 @@ class AutoLockWallpaperService : Service(), DisplayManager.DisplayListener {
 
     override fun onDestroy() {
         pendingApply?.cancel()
+        if (::orientationListener.isInitialized) orientationListener.disable()
         if (::displayManager.isInitialized) displayManager.unregisterDisplayListener(this)
         scope.cancel()
         super.onDestroy()

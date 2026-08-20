@@ -140,6 +140,21 @@ class TransformCalculatorTest {
         assertEquals("portrait",replacedLandscape.imageUri(false))
     }
 
+    @Test fun physicalOrientationUsesNaturalDeviceShapeAndRejectsDiagonals(){
+        assertTrue(PhysicalOrientationResolver.isLandscape(0,true)!!)
+        assertTrue(PhysicalOrientationResolver.isLandscape(180,true)!!)
+        assertFalse(PhysicalOrientationResolver.isLandscape(90,true)!!)
+        assertFalse(PhysicalOrientationResolver.isLandscape(270,true)!!)
+
+        assertFalse(PhysicalOrientationResolver.isLandscape(0,false)!!)
+        assertTrue(PhysicalOrientationResolver.isLandscape(90,false)!!)
+        assertFalse(PhysicalOrientationResolver.isLandscape(359,false)!!)
+
+        assertNull(PhysicalOrientationResolver.isLandscape(45,true))
+        assertNull(PhysicalOrientationResolver.isLandscape(135,true))
+        assertNull(PhysicalOrientationResolver.isLandscape(PhysicalOrientationResolver.UNKNOWN,true))
+    }
+
     @Test fun editHistorySupportsReplaceUndoRedoAndDiscard(){
         val original=WallpaperConfig(desktop=WallpaperSourceConfig("old"));val replacement=original.copy(desktop=WallpaperSourceConfig("new"));val h=EditHistory(original)
         h.commit(replacement);assertEquals("new",h.current.desktop.imageUri);assertEquals("old",h.undo().desktop.imageUri);assertEquals("new",h.redo().desktop.imageUri);assertEquals("old",original.desktop.imageUri)
